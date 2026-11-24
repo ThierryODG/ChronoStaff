@@ -1,0 +1,439 @@
+{
+	"info": {
+		"_postman_id": "chronostaff-api-v1",
+		"name": "ChronoStaff API",
+		"description": "Collection complète de test pour l'API REST ChronoStaff (Laravel 11 + Sanctum)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000/api",
+			"type": "string"
+		},
+		{
+			"key": "admin_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "employee_token",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "1. Authentification",
+			"item": [
+				{
+					"name": "Login Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.access_token) {",
+									"    pm.collectionVariables.set('admin_token', jsonData.access_token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"admin@chronostaff.local\",\n    \"password\": \"Admin@123456\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Login Employé",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.access_token) {",
+									"    pm.collectionVariables.set('employee_token', jsonData.access_token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"employe@chronostaff.local\",\n    \"password\": \"Employe@123456\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Profil Courant (Me)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{employee_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/auth/me",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "me"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "2. Légal & Consentement",
+			"item": [
+				{
+					"name": "Statut d'acceptation CGU",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{employee_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/legal/status",
+							"host": ["{{base_url}}"],
+							"path": ["legal", "status"]
+						}
+					}
+				},
+				{
+					"name": "Accepter CGU & Confidentialité",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{employee_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/legal/accept",
+							"host": ["{{base_url}}"],
+							"path": ["legal", "accept"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "3. Pointage & Synchronisation Offline",
+			"item": [
+				{
+					"name": "Pointer via QR Code (Sur site)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"qr_token\": \"EMP-QR-JEAN-DUPONT-TEST-TOKEN-001\",\n    \"latitude\": 48.8698,\n    \"longitude\": 2.3314\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/clock/punch",
+							"host": ["{{base_url}}"],
+							"path": ["clock", "punch"]
+						}
+					}
+				},
+				{
+					"name": "Pointer via Code PIN (4 chiffres)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"pin_code\": \"1234\",\n    \"latitude\": 48.8698,\n    \"longitude\": 2.3314\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/clock/punch",
+							"host": ["{{base_url}}"],
+							"path": ["clock", "punch"]
+						}
+					}
+				},
+				{
+					"name": "Synchronisation Batch Offline (avec Idempotence)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{employee_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"punches\": [\n        {\n            \"offline_id\": \"test-uuid-offline-001\",\n            \"type\": \"in\",\n            \"punched_at\": \"2026-11-23T08:00:00Z\",\n            \"latitude\": 48.8698,\n            \"longitude\": 2.3314\n        },\n        {\n            \"offline_id\": \"test-uuid-offline-002\",\n            \"type\": \"out\",\n            \"punched_at\": \"2026-11-23T12:00:00Z\",\n            \"latitude\": 48.8698,\n            \"longitude\": 2.3314\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/clock/sync",
+							"host": ["{{base_url}}"],
+							"path": ["clock", "sync"]
+						}
+					}
+				},
+				{
+					"name": "Historique des pointages (Employé)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{employee_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/employee/history",
+							"host": ["{{base_url}}"],
+							"path": ["employee", "history"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "4. Espace Administrateur",
+			"item": [
+				{
+					"name": "Dashboard 'Qui est là ?'",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/admin/dashboard/who-is-here",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "dashboard", "who-is-here"]
+						}
+					}
+				},
+				{
+					"name": "Rapport d'heures (JSON)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/admin/reports?start_date=2026-11-01&end_date=2026-11-30",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "reports"],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2026-11-01"
+								},
+								{
+									"key": "end_date",
+									"value": "2026-11-30"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Export Rapport CSV",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/admin/reports/export-csv?start_date=2026-11-01&end_date=2026-11-30",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "reports", "export-csv"],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2026-11-01"
+								},
+								{
+									"key": "end_date",
+									"value": "2026-11-30"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Ajustement Manuel (Pointage manqué)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_id\": 2,\n    \"type\": \"in\",\n    \"punched_at\": \"2026-11-23T08:30:00Z\",\n    \"admin_note\": \"Oubli de badgeage lors de son arrivée suite à une intervention client.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/manual-adjustments",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "manual-adjustments"]
+						}
+					}
+				},
+				{
+					"name": "Liste des Employés",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/admin/employees",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "employees"]
+						}
+					}
+				},
+				{
+					"name": "Paramètres Entreprise",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/admin/company/settings",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "company", "settings"]
+						}
+					}
+				}
+			]
+		}
+	]
+}
+

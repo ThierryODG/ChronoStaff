@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full bg-slate-100 select-none">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>ChronoStaff - Pointage & Suivi Mobile</title>
+
+    <!-- Anti-cache meta tags -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <link rel="manifest" href="./manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ChronoStaff">
+    <link rel="apple-touch-icon" href="./icons/icon.png">
+    <link rel="icon" type="image/png" href="./icons/icon.png">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            900: '#1e3a8a',
+                        },
+                        accent: {
+                            500: '#10b981',
+                            600: '#059669',
+                        }
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.3s ease-out',
+                        'slide-up': 'slideUp 0.35s ease-out',
+                    },
+                    keyframes: {
+                        fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+                        slideUp: { '0%': { transform: 'translateY(20px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } },
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- FontAwesome & HTML5-QRCode Scanner -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+    <link rel="stylesheet" href="./css/app.css?v=17.0">
+</head>
+<body class="h-full flex flex-col font-sans text-slate-800 antialiased overflow-hidden">
+
+    <!-- Watermark en arrière-plan (icône ChronoStaff discrète) -->
+    <div id="watermark-icon" aria-hidden="true">
+        <img src="./icons/icon.png" alt="">
+    </div>
+
+    <!-- 0. SPLASHSCREEN AU DÉMARRAGE -->
+    <div id="splashscreen" class="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center transition-opacity duration-500">
+        <div class="flex flex-col items-center px-6 text-center animate-pulse">
+            <img src="./logo.png" onerror="this.src='./icons/icon.png'" alt="ChronoStaff Logo" class="h-24 sm:h-28 w-auto object-contain mb-6 drop-shadow-sm">
+            <div class="h-1.5 w-36 bg-slate-100 rounded-full overflow-hidden">
+                <div class="h-full bg-blue-600 rounded-full" style="animation: slideRight 1.2s ease-in-out infinite;"></div>
+            </div>
+            <p class="text-xs text-slate-400 mt-4 font-semibold tracking-wide">Initialisation de votre espace...</p>
+        </div>
+    </div>
+    <!-- TOP HEADER : UNIQUEMENT LE LOGO CENTRÉ, GRAND ET BIEN ESPACÉ -->
+    <header id="app-header" class="hidden bg-white/95 backdrop-blur-md border-b border-slate-100 px-4 py-5 sm:py-6 flex items-center justify-center shadow-xs z-20 relative">
+        <img src="./logo.png" onerror="this.src='./icons/icon.png'" alt="ChronoStaff" class="h-14 sm:h-16 w-auto object-contain mx-auto">
+    </header>
+
+    <!-- Zone principale scrollable -->
+    <main class="flex-1 overflow-y-auto relative flex flex-col justify-center" style="z-index: 1;">
+
+        <!-- ==========================================
+             SCREEN 1: LOGIN (Agent OU Mode Borne)
+        =========================================== -->
+        <div id="screen-login" class="app-screen max-w-sm w-full mx-auto my-auto p-4">
+            <div class="bg-white p-7 rounded-3xl shadow-xl border border-slate-200 animate-slide-up">
+                <div class="text-center mb-6">
+                    <img src="./logo.png" onerror="this.src='./icons/icon.png'" alt="ChronoStaff" class="h-20 w-auto mx-auto mb-3 object-contain">
+                    <h1 class="text-xl font-bold text-slate-900">Espace Mobile</h1>
+                    <p class="text-xs text-slate-500 mt-0.5">Application de pointage & suivi</p>
+                </div>
+
+                <!-- Bascule Salarié vs Borne -->
+                <div class="flex bg-slate-100 p-1 rounded-2xl mb-5">
+                    <button type="button" id="tab-login-agent" class="flex-1 py-2 text-xs font-bold rounded-xl bg-white text-blue-600 shadow-xs transition" onclick="App.switchLoginMode('agent')">
+                        <i class="fa-solid fa-user mr-1.5"></i> Salarié / Manager
+                    </button>
+                    <button type="button" id="tab-login-kiosk" class="flex-1 py-2 text-xs font-bold rounded-xl text-slate-500 hover:text-slate-800 transition" onclick="App.switchLoginMode('kiosk')">
+                        <i class="fa-solid fa-tablet-screen-button mr-1.5"></i> Mode Borne
+                    </button>
+                </div>
+
+                <div id="login-error" class="hidden mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl"></div>
+
+                <!-- 1. Formulaire Salarié / Manager (Email + MDP) -->
+                <form id="form-login" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Email professionnel</label>
+                        <input type="email" id="login-email" required autocomplete="email" placeholder="votre-email@entreprise.com"
+                               class="w-full px-3.5 py-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-slate-50">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Mot de passe</label>
+                        <input type="password" id="login-password" required autocomplete="current-password" placeholder="••••••••"
+                               class="w-full px-3.5 py-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-slate-50">
+                    </div>
+                    <button type="submit" id="btn-login-submit" class="w-full py-3.5 bg-gradient-to-r from-blue-700 to-blue-600 hover:from-blue-800 hover:to-blue-700 text-white font-bold rounded-xl text-sm shadow-md ripple transition">
+                        Se connecter
+                    </button>
+                    <p class="text-[11px] text-center text-slate-400 mt-2">Vos identifiants restent mémorisés sur cet appareil.</p>
+                </form>
+
+                <!-- 2. Formulaire Mode Borne (Device Code + Clé à 6 chiffres) -->
+                <form id="form-kiosk-login" class="hidden space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Identifiant de la borne</label>
+                        <input type="text" id="kiosk-device-code" required placeholder="Ex: KIOSK-7A9B-4C2D"
+                               class="w-full px-3.5 py-3 border border-slate-300 rounded-xl text-sm font-mono uppercase focus:ring-2 focus:ring-violet-600 focus:outline-none bg-slate-50">
+                        <p class="text-[10px] text-slate-400 mt-1">Généré dans Paramètres > Accès & Bornes</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Clé d'accès (6 chiffres)</label>
+                        <input type="password" id="kiosk-access-key" required maxlength="6" pattern="[0-9]{6}" inputmode="numeric" placeholder="123456"
+                               class="w-full px-3.5 py-3 border border-slate-300 rounded-xl text-sm font-mono tracking-widest text-center focus:ring-2 focus:ring-violet-600 focus:outline-none bg-slate-50">
+                    </div>
+                    <button type="submit" id="btn-kiosk-submit" class="w-full py-3.5 bg-gradient-to-r from-violet-700 to-violet-600 hover:from-violet-800 hover:to-violet-700 text-white font-bold rounded-xl text-sm shadow-md ripple transition">
+                        Activer cette Borne
+                    </button>
+                    <p class="text-[11px] text-center text-slate-400 mt-2">Cet appareil sera dédié au pointage collectif des salariés.</p>
+                </form>
+            </div>
+        </div>
+
+        <!-- ==========================================
+             SCREEN 2: LÉGAL / CGU (Premier lancement ou nouvel appareil)
+        =========================================== -->
+        <div id="screen-legal" class="app-screen hidden max-w-sm w-full mx-auto my-auto p-4">
+            <div class="bg-white p-6 rounded-3xl shadow-xl border border-slate-200 space-y-4 animate-slide-up">
+                <div class="text-center">
+                    <div class="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center text-xl mx-auto mb-2">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                    <h2 class="text-lg font-bold text-slate-900">Bienvenue sur ChronoStaff</h2>
+                    <p class="text-xs text-slate-500">Avant de badger, veuillez accepter les conditions d'utilisation.</p>
+                </div>
+
+                <div class="bg-slate-50 p-3.5 rounded-xl text-xs text-slate-600 max-h-40 overflow-y-auto border border-slate-200 space-y-2">
+                    <p><strong>1. Utilisation du GPS :</strong> Relevé uniquement au moment exact où vous badgez pour valider la présence sur site.</p>
+                    <p><strong>2. Caméra :</strong> Utilisée pour scanner le QR Code de votre badge.</p>
+                    <p><strong>3. Données :</strong> Traitées pour le décompte légal de votre temps de travail.</p>
+                </div>
+
+                <div class="flex items-start space-x-2 pt-2">
+                    <input type="checkbox" id="check-terms" class="mt-1 h-4 w-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500">
+                    <label for="check-terms" class="text-xs text-slate-700 cursor-pointer">
+                        J'accepte les Conditions d'Utilisation et la Politique de Confidentialité.
+                    </label>
+                </div>
+
+                <button id="btn-accept-terms" disabled class="w-full py-3 bg-blue-600 text-white font-bold rounded-xl text-sm opacity-50 cursor-not-allowed shadow transition">
+                    Continuer
+                </button>
+                <p id="legal-error" class="hidden text-xs text-rose-700 text-center" role="alert"></p>
+            </div>
+        </div>
+
+        <!-- ==========================================
+             SCREEN 3: POINTAGE PRINCIPAL
+             PIN PAD au 1er plan + Bouton QR
+        =========================================== -->
+        <div id="screen-punch" class="app-screen hidden flex flex-col items-center justify-center my-auto px-4 py-4 space-y-5">
+
+            <!-- Titre haut -->
+            <div class="text-center space-y-0.5">
+                <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400">Pointage</p>
+                <h2 class="text-xl font-black text-slate-900">Entrez votre code PIN</h2>
+            </div>
+
+            <!-- Bouton QR Code -->
+            <button id="btn-open-qr" type="button" class="flex items-center space-x-2 px-5 py-2.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-2xl text-xs font-bold hover:bg-blue-100 ripple transition shadow-xs">
+                <i class="fa-solid fa-qrcode text-base text-blue-600"></i>
+                <span>Scanner un badge QR</span>
+            </button>
+
+            <!-- Indicateur 4 points du PIN -->
+            <div class="flex justify-center space-x-5">
+                <div class="pin-dot w-5 h-5 rounded-full border-2 border-slate-300 transition-all duration-150"></div>
+                <div class="pin-dot w-5 h-5 rounded-full border-2 border-slate-300 transition-all duration-150"></div>
+                <div class="pin-dot w-5 h-5 rounded-full border-2 border-slate-300 transition-all duration-150"></div>
+                <div class="pin-dot w-5 h-5 rounded-full border-2 border-slate-300 transition-all duration-150"></div>
+            </div>
+
+            <!-- Label statut validation PIN -->
+            <div id="pin-status-label" class="text-xs text-slate-400 font-medium text-center h-4 flex items-center justify-center"></div>
+
+            <!-- Clavier numérique intégré -->
+            <div id="pin-keypad" class="w-full max-w-xs grid grid-cols-3 gap-3">
+                <button type="button" class="pin-num-key w-full py-4 sm:py-5 bg-white border border-slate-200 hover:bg-blue-50 font-bold text-xl rounded-2xl shadow-xs" data-val="1">1</button>
+                <button type="button" class="pin-num-key w-full py-4 sm:py-5 bg-white border border-slate-200 hover:bg-blue-50 font-bold text-xl rounded-2xl shadow-xs" data-val="2">2</button>
+                <button type="button" class="pin-num-key w-full py-4 sm:py-5 bg-white border border-slate-200 hover:bg-blue-50 font-bold text-xl rounded-2xl shadow-xs" data-val="3">3</button>
+                <button type="button" class="pin-num-key w-full py-4 sm:py-5 bg-white border border-slate-200 hover:bg-blue-50 font-bold text-xl rounded-2xl shadow-xs" data-val="4">4</button>
+                <button type="button" class="pin-num-key w-full py-4 sm:py-5 bg-white border border-slate-200 hover:bg-blue-50 font-bold text-xl rounded-2xl shadow-xs" data-val="5">5</button>
+                <button type="button" class="pin-num-key w-full py-4 sm:py-5 bg-white border border-slate-200 hover:bg-blue-50 font-bold text-xl rounded-2xl shadow-xs" data-val="6">6</button>
+                <button type="button" class="pin-num-key w-full py-4 sm:py-5 bg-white border border-slate-200 hover:bg-blue-50 font-bold text-xl rounded-2xl shadow-xs" data-val="7">7</button>
+                <button type="button" class="pin-num-key w-full py-4 sm:py-5 bg-white border border-slate-200 hover:bg-blue-50 font-bold text-xl rounded-2xl shadow-xs" data-val="8">8</button>
+                <button type="button" class="pin-num-key w-full py-4 sm:py-5 bg-white border border-slate-200 hover:bg-blue-50 font-bold text-xl rounded-2xl shadow-xs" data-val="9">9</button>
+                <button type="button" id="btn-inline-pin-delete" class="w-full py-4 sm:py-5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-sm rounded-2xl shadow-xs">
+                    <i class="fa-solid fa-delete-left"></i>
+                </button>
+                <button type="button" class="pin-num-key w-full py-4 sm:py-5 bg-white border border-slate-200 hover:bg-blue-50 font-bold text-xl rounded-2xl shadow-xs" data-val="0">0</button>
+                <button type="button" id="btn-inline-pin-submit" disabled class="w-full py-4 sm:py-5 bg-blue-600 text-white font-bold text-sm rounded-2xl opacity-40 shadow-xs">
+                    <i class="fa-solid fa-check text-lg"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- ==========================================
+             SCREEN 4: HISTORIQUE DES POINTAGES (Agent)
+        =========================================== -->
+        <div id="screen-history" class="app-screen hidden max-w-md w-full mx-auto my-auto space-y-4 p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900">Mes Pointages</h2>
+                    <p class="text-xs text-slate-500">Historique récent et état des synchronisations</p>
+                </div>
+                <button id="btn-manual-sync" type="button" class="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-100 transition">
+                    <i class="fa-solid fa-rotate mr-1"></i> Synchroniser
+                </button>
+            </div>
+
+            <!-- Filtre par date et Demande de justification -->
+            <div class="flex items-center gap-2">
+                <input type="date" id="history-date-filter" class="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-blue-600 focus:outline-none shadow-xs">
+                <button id="btn-clear-date-filter" type="button" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition shadow-xs" title="Réinitialiser le filtre">
+                    <i class="fa-solid fa-calendar-xmark"></i>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button id="btn-open-justification-modal" type="button" class="w-full py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-xl text-xs font-bold border border-amber-200 transition flex items-center justify-center space-x-2 shadow-xs">
+                    <i class="fa-solid fa-file-pen text-amber-600"></i>
+                    <span>Justifier absence / retard</span>
+                </button>
+                <button id="btn-download-monthly-report" type="button" class="w-full py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold border border-blue-200 transition flex items-center justify-center space-x-2 shadow-xs">
+                    <i class="fa-solid fa-file-pdf text-rose-600"></i>
+                    <span>Mon Bilan Mensuel (PDF)</span>
+                </button>
+            </div>
+
+            <div id="history-list" class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1"></div>
+        </div>
+
+        <!-- ==========================================
+             SCREEN 5: MON COMPTE (Salarié)
+        =========================================== -->
+        <div id="screen-account" class="app-screen hidden max-w-md w-full mx-auto my-auto space-y-4 p-4">
+            <div class="text-center pb-2">
+                <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-400 text-white font-bold text-2xl flex items-center justify-center mx-auto mb-2 shadow-lg">
+                    <span id="account-avatar-initials">JD</span>
+                </div>
+                <h2 id="account-name" class="text-xl font-bold text-slate-900">Jean Dupont</h2>
+                <p id="account-email" class="text-xs text-slate-500 font-medium">employe@chronostaff.local</p>
+            </div>
+
+            <!-- Mon Badge QR Code -->
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs text-center space-y-3">
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Mon Badge Numérique</span>
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 inline-block">
+                    <img id="account-qrcode-img" src="" alt="Mon QR Code" class="w-40 h-40 object-contain mx-auto">
+                </div>
+                <div class="flex justify-between items-center text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <span class="text-slate-500 font-medium">Mon code PIN :</span>
+                    <span id="account-pin" class="font-mono font-bold text-slate-900 text-base tracking-widest">1234</span>
+                </div>
+                <button type="button" id="btn-download-badge" class="w-full py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl text-xs border border-blue-200 transition flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-download"></i>
+                    <span>Télécharger / Imprimer mon Badge (PNG)</span>
+                </button>
+            </div>
+
+            <!-- Infos Société -->
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2 text-xs">
+                <div class="flex justify-between py-1.5 border-b border-slate-100">
+                    <span class="text-slate-500">Entreprise :</span>
+                    <span id="account-company" class="font-bold text-slate-800">ChronoStaff</span>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-slate-100">
+                    <span class="text-slate-500">Département :</span>
+                    <span id="account-dept" class="font-bold text-slate-800">Général</span>
+                </div>
+                <div class="flex justify-between py-1.5">
+                    <span class="text-slate-500">Rôle :</span>
+                    <span id="account-role" class="font-bold text-blue-600 uppercase">Employé</span>
+                </div>
+            </div>
+
+            <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-2">
+                <p class="text-xs font-bold text-slate-800">Caméra et localisation</p>
+                <p id="camera-permission-status" class="text-xs text-slate-600" aria-live="polite">La caméra sera demandée au lancement du scanner QR.</p>
+                <button type="button" id="btn-test-camera" class="w-full py-2.5 bg-blue-700 text-white rounded-xl text-xs font-bold">
+                    Tester la caméra
+                </button>
+                <p id="location-permission-status" class="text-xs text-slate-600" aria-live="polite">La localisation sera demandée au pointage.</p>
+                <button type="button" id="btn-test-location" class="w-full py-2.5 bg-white text-blue-700 border border-blue-200 rounded-xl text-xs font-bold">
+                    Tester la localisation
+                </button>
+                <p class="text-[11px] text-slate-500">Le navigateur mémorise ces autorisations pour ce site. Les permissions déjà refusées se réactivent dans ses réglages.</p>
+            </div>
+
+            <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-2">
+                <p class="text-xs font-bold text-slate-800">Notifications sur cet appareil</p>
+                <p class="notification-permission-status text-xs text-slate-600" aria-live="polite">Vérification de l’autorisation…</p>
+                <button type="button" class="btn-enable-notifications w-full py-2.5 bg-blue-700 text-white rounded-xl text-xs font-bold">
+                    Activer les rappels
+                </button>
+            </div>
+
+            <!-- Bouton Déconnexion Salarié -->
+            <button type="button" onclick="App.handleLogout()" class="w-full py-3.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-xl text-sm border border-rose-200 transition flex items-center justify-center space-x-2 ripple">
+                <i class="fa-solid fa-power-off"></i>
+                <span>Se déconnecter</span>
+            </button>
+        </div>
+
+        <!-- ==========================================
+             SCREEN 6: MANAGER HUB (Dashboard & Rapports)
+             Vert Sombre Forêt Exclusif & Formes Nettes
+        =========================================== -->
+        <div id="screen-manager" class="app-screen hidden flex flex-col w-full h-full overflow-hidden manager-shell">
+
+            <!-- En-tête Manager -->
+            <div class="manager-header px-4 pt-4 pb-3 flex-shrink-0">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="manager-eyebrow inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wider uppercase">
+                            <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                            <span>Tableau de bord</span>
+                        </div>
+                        <h2 id="manager-welcome" class="text-lg font-bold mt-1">Bonjour, Manager 👋</h2>
+                        <p class="text-xs text-slate-500" id="manager-date-line">Chargement...</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button id="btn-refresh-manager" type="button" class="manager-refresh w-10 h-10 rounded-xl flex items-center justify-center transition text-sm" title="Actualiser les données">
+                            <i class="fa-solid fa-rotate-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="manager-tabs flex mt-4 p-1">
+                    <button id="mgr-tab-dashboard" type="button" class="manager-tab is-active flex-1 py-2 text-sm font-semibold transition" onclick="App.switchManagerTab('dashboard')">
+                        <i class="fa-solid fa-chart-line mr-1.5"></i> Dashboard
+                    </button>
+                    <button id="mgr-tab-reports" type="button" class="manager-tab flex-1 py-2 text-sm font-semibold transition" onclick="App.switchManagerTab('reports')">
+                        <i class="fa-solid fa-file-invoice mr-1.5"></i> Rapports
+                    </button>
+                </div>
+            </div>
+
+            <!-- ==========================================
+                 PANEL 1 : DASHBOARD COMPLET MANAGER
+            =========================================== -->
+            <div id="mgr-panel-dashboard" class="manager-panel flex-1 overflow-y-auto p-4 space-y-5">
+                
+                <!-- 1. Bannière Horaires & Présence Globale -->
+                <div class="manager-card bg-slate-900/90 border border-emerald-900/40 rounded-xl p-4 space-y-3 shadow-xs">
+                    <div class="flex items-center justify-between text-xs">
+                        <div class="flex items-center space-x-2 text-slate-300">
+                            <i class="fa-solid fa-clock text-emerald-400"></i>
+                            <span class="font-semibold">Horaires normaux :</span>
+                            <span id="manager-work-schedule" class="font-bold text-white font-mono">08:00 — 17:00</span>
+                        </div>
+                        <span id="manager-presence-ratio" class="text-emerald-400 font-bold font-mono">0 / 0</span>
+                    </div>
+                    <!-- Barre de progression visuelle de présence -->
+                    <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div id="manager-presence-bar" class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500" style="width: 0%;"></div>
+                    </div>
+                    <div class="flex items-center justify-between text-[10px] text-slate-400">
+                        <span id="manager-presence-percent">0% de l'équipe présente</span>
+                        <span id="manager-last-refresh" class="font-mono">En direct</span>
+                    </div>
+                </div>
+
+                <!-- 2. Grille de 6 KPIs Détaillés -->
+                <div class="manager-kpi-grid grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <!-- Présents -->
+                    <div class="manager-card manager-kpi bg-slate-900/90 border border-emerald-900/40 rounded-xl p-3 shadow-xs">
+                        <div class="text-[10px] font-bold uppercase tracking-wider text-emerald-400 flex items-center justify-between">
+                            <span>Présents</span>
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        </div>
+                        <div id="manager-stat-present" class="text-2xl font-black text-white mt-0.5">0</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">En service actif</div>
+                    </div>
+
+                    <!-- Absents -->
+                    <div class="manager-card manager-kpi bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-xs">
+                        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Non pointés</div>
+                        <div id="manager-stat-absent" class="text-2xl font-black text-slate-300 mt-0.5">0</div>
+                        <div class="text-[10px] text-slate-500 mt-0.5">En attente / Absents</div>
+                    </div>
+
+                    <!-- Ponctualité -->
+                    <div class="manager-card manager-kpi bg-slate-900/90 border border-emerald-900/40 rounded-xl p-3 shadow-xs">
+                        <div class="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Ponctualité</div>
+                        <div id="manager-stat-punctuality" class="text-2xl font-black text-emerald-400 mt-0.5">100%</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5"><i class="fa-solid fa-check mr-1 text-emerald-400"></i> À l'heure</div>
+                    </div>
+
+                    <!-- Retards -->
+                    <div class="manager-card manager-kpi bg-slate-900/90 border border-rose-950/80 rounded-xl p-3 shadow-xs">
+                        <div class="text-[10px] font-bold uppercase tracking-wider text-rose-400">Retards du jour</div>
+                        <div id="manager-stat-lates" class="text-2xl font-black text-rose-300 mt-0.5">0</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">Arrivées tardives</div>
+                    </div>
+
+                    <!-- Heures cumulées -->
+                    <div class="manager-card manager-kpi bg-slate-900/90 border border-teal-950/80 rounded-xl p-3 shadow-xs">
+                        <div class="text-[10px] font-bold uppercase tracking-wider text-teal-400">Heures Équipe</div>
+                        <div id="manager-stat-hours-today" class="text-2xl font-black text-teal-300 mt-0.5">0.0 h</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">Cumul aujourd'hui</div>
+                    </div>
+
+                    <!-- Sur site / Distance -->
+                    <div class="manager-card manager-kpi bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-xs">
+                        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Localisation</div>
+                        <div id="manager-stat-onsite-split" class="text-lg font-bold text-white mt-1">0 site / 0 dist</div>
+                        <div class="text-[10px] text-slate-500 mt-0.5">Géoloc GPS validée</div>
+                    </div>
+                </div>
+
+                <!-- 3. Section : Équipe en service (Présents) -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-semibold tracking-tight text-slate-800 flex items-center">
+                            <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse mr-2"></span>
+                            Salariés en service (Présents)
+                        </h3>
+                    </div>
+                    <div id="manager-present-list" class="space-y-2">
+                        <div class="p-6 text-center text-slate-400 text-xs bg-slate-900/80 rounded-xl border border-slate-800">
+                            <i class="fa-solid fa-spinner fa-spin text-xl mb-2 block text-emerald-500"></i>
+                            Chargement de l'équipe...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Section : Salariés Non Pointés (Absents / En attente) -->
+                <div class="manager-section space-y-2 pt-4 border-t border-slate-200">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center">
+                            <i class="fa-solid fa-user-xmark mr-2 text-slate-500"></i>
+                            Salariés Non Pointés Aujourd'hui
+                        </h3>
+                    </div>
+                    <div id="manager-absent-list" class="space-y-1.5">
+                        <div class="p-4 text-center text-slate-500 text-xs bg-slate-900/60 rounded-xl border border-slate-800/80">
+                            Tous les salariés sont présents.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Section : Justifications Récentes -->
+                <div class="manager-section space-y-2 pt-4 border-t border-slate-200">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center">
+                            <i class="fa-solid fa-file-shield text-amber-400 mr-2"></i>
+                            Justifications Récentes Déposées
+                        </h3>
+                    </div>
+                    <div id="manager-justifications-list" class="space-y-2">
+                        <div class="p-4 text-center text-slate-400 text-xs bg-slate-900/80 rounded-xl border border-slate-800">
+                            Aucune justification récente déposée.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==========================================
+                 PANEL 2 : RAPPORTS COMPLETS (ADAPTATION WEB MOBILE)
+            =========================================== -->
+            <div id="mgr-panel-reports" class="manager-panel flex-1 overflow-y-auto p-4 space-y-5 hidden">
+                
+                <!-- Actions d'Exportation Principales -->
+                <div class="grid grid-cols-2 gap-3">
+                    <button type="button" onclick="App.exportManagerReport('pdf')" class="manager-export-button py-3 px-3 border rounded-xl text-sm font-semibold flex items-center justify-center space-x-2 transition">
+                        <i class="fa-solid fa-file-pdf text-blue-500 text-base"></i>
+                        <span>Exporter PDF (A4)</span>
+                    </button>
+                    <button type="button" onclick="App.exportManagerReport('csv')" class="manager-export-button py-3 px-3 border rounded-xl text-sm font-semibold flex items-center justify-center space-x-2 transition">
+                        <i class="fa-solid fa-file-csv text-blue-500 text-base"></i>
+                        <span>Exporter CSV (Excel)</span>
+                    </button>
+                </div>
+
+                <!-- Filtres de Période & Raccourcis -->
+                <div class="manager-card bg-slate-900/90 border border-emerald-900/40 rounded-xl p-4 space-y-4 shadow-xs">
+                    <div class="manager-period-header flex items-center justify-between">
+                        <span class="text-sm font-semibold tracking-tight text-slate-800">Période d'analyse</span>
+                        <div class="manager-range-buttons flex space-x-1.5">
+                            <button type="button" onclick="App.setReportRange('today')" class="manager-range-button px-3 py-1.5 rounded-lg text-xs font-semibold transition">Auj.</button>
+                            <button type="button" onclick="App.setReportRange('week')" class="manager-range-button px-3 py-1.5 rounded-lg text-xs font-semibold transition">Semaine</button>
+                            <button type="button" onclick="App.setReportRange('month')" class="manager-range-button manager-range-active px-3 py-1.5 rounded-lg text-xs font-semibold transition">Mois</button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 mb-1.5">Date de début</label>
+                            <input type="date" id="mgr-report-start" class="manager-date-input w-full px-3 py-2.5 border rounded-lg text-sm font-medium focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 mb-1.5">Date de fin</label>
+                            <input type="date" id="mgr-report-end" class="manager-date-input w-full px-3 py-2.5 border rounded-lg text-sm font-medium focus:outline-none">
+                        </div>
+                    </div>
+                    <button type="button" onclick="App.loadManagerReports()" class="manager-filter-button w-full py-3 text-sm font-semibold rounded-xl transition flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-filter"></i>
+                        <span>Filtrer & Calculer le rapport</span>
+                    </button>
+                </div>
+
+                <!-- Bandeau Règles d'Entreprise -->
+                <div class="manager-info-card border rounded-xl p-4 text-sm space-y-1.5">
+                    <div class="font-semibold flex items-center">
+                        <i class="fa-solid fa-info-circle mr-2"></i>
+                        <span>Règles de décompte applicables :</span>
+                    </div>
+                    <p class="text-slate-600 text-xs leading-relaxed">
+                        Horaires : <strong class="text-slate-900" id="mgr-rules-hours">08:00 - 17:00</strong> | Pauses déduites : <strong class="text-slate-900">-30 min dès 6h</strong> | Seuls les shifts sur site sont payés.
+                    </p>
+                </div>
+
+                <!-- Synthèse Globale Heures Équipe -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div class="manager-card bg-slate-900/90 border border-slate-800 rounded-xl p-3 text-center">
+                        <div class="text-[9px] font-bold text-slate-400 uppercase">Salariés</div>
+                        <div id="mgr-rep-total-emp" class="text-lg font-black text-white mt-0.5">0</div>
+                    </div>
+                    <div class="manager-card bg-slate-900/90 border border-slate-800 rounded-xl p-3 text-center">
+                        <div class="text-[9px] font-bold text-slate-400 uppercase">Total Shifts</div>
+                        <div id="mgr-rep-total-shifts" class="text-lg font-black text-white mt-0.5">0</div>
+                    </div>
+                    <div class="manager-card bg-slate-900/90 border border-slate-800 rounded-xl p-3 text-center">
+                        <div class="text-[9px] font-bold text-slate-400 uppercase">Heures Brutes</div>
+                        <div id="mgr-rep-total-raw" class="text-lg font-black text-slate-300 mt-0.5">0.0 h</div>
+                    </div>
+                    <div class="manager-card bg-slate-900/90 border border-emerald-900/50 rounded-xl p-3 text-center">
+                        <div class="text-[9px] font-bold text-emerald-400 uppercase">Total Net Payé</div>
+                        <div id="mgr-rep-total-paid" class="text-lg font-black text-emerald-300 mt-0.5">0h 00m</div>
+                    </div>
+                </div>
+
+                <!-- Liste Détaillée par Salarié (Fiches avec Accordéon des shifts) -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300">Détail Individuel des Salariés</h3>
+                        <span id="mgr-report-count" class="text-[11px] text-emerald-400 font-bold">0 salarié(s)</span>
+                    </div>
+                    <div id="manager-team-reports-list" class="space-y-2.5">
+                        <div class="p-6 text-center text-slate-400 text-xs bg-slate-900/80 rounded-xl border border-slate-800">
+                            Sélectionnez une période pour afficher le rapport de l'équipe.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ==========================================
+             SCREEN 7: MON COMPTE MANAGER (Superviseur)
+             Exclusif Manager : ZÉRO QR CODE, ZÉRO PIN
+        =========================================== -->
+        <div id="screen-manager-account" class="app-screen hidden max-w-md w-full mx-auto my-auto space-y-4 p-4">
+            <div class="text-center pb-2">
+                <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-700 to-emerald-900 text-white font-black text-2xl flex items-center justify-center mx-auto mb-2 shadow-lg border border-emerald-500/30">
+                    <span id="mgr-account-avatar">MG</span>
+                </div>
+                <h2 id="mgr-account-fullname" class="text-xl font-bold text-slate-900">Manager</h2>
+                <p id="mgr-account-email-addr" class="text-xs text-slate-500 font-medium">—</p>
+                <div class="mt-2 inline-flex items-center px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200">
+                    <i class="fa-solid fa-shield-halved mr-1.5 text-emerald-600"></i>
+                    <span>Superviseur / Manager Mobile</span>
+                </div>
+            </div>
+
+            <!-- Fiche d'Informations Société (Aucun QR Code, Aucun PIN) -->
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 text-xs">
+                <div class="flex justify-between py-2 border-b border-slate-100">
+                    <span class="text-slate-500 flex items-center"><i class="fa-solid fa-building mr-2 text-slate-400"></i> Entreprise :</span>
+                    <span id="mgr-account-company-name" class="font-bold text-slate-800">—</span>
+                </div>
+                <div class="flex justify-between py-2 border-b border-slate-100">
+                    <span class="text-slate-500 flex items-center"><i class="fa-solid fa-layer-group mr-2 text-slate-400"></i> Département :</span>
+                    <span id="mgr-account-dept-name" class="font-bold text-slate-800">—</span>
+                </div>
+                <div class="flex justify-between py-2 border-b border-slate-100">
+                    <span class="text-slate-500 flex items-center"><i class="fa-solid fa-user-shield mr-2 text-slate-400"></i> Rôle d'accès :</span>
+                    <span class="font-bold text-emerald-700 uppercase">Manager</span>
+                </div>
+                <div class="flex justify-between py-2">
+                    <span class="text-slate-500 flex items-center"><i class="fa-solid fa-calendar-day mr-2 text-slate-400"></i> Date de session :</span>
+                    <span id="mgr-account-today-date" class="font-bold text-slate-800">—</span>
+                </div>
+            </div>
+
+            <!-- Droits d'Accès accordés -->
+            <div class="bg-emerald-50/70 p-4 rounded-2xl border border-emerald-200 text-xs text-emerald-900 space-y-2">
+                <div class="font-bold text-[11px] uppercase tracking-wider text-emerald-800 flex items-center">
+                    <i class="fa-solid fa-circle-check text-emerald-600 mr-1.5"></i> Prérogatives superviseur :
+                </div>
+                <ul class="list-disc list-inside space-y-1 text-[11px] text-emerald-800/90 pl-1">
+                    <li>Surveillance en temps réel des présences de l'équipe</li>
+                    <li>Consultation des rapports d'heures et exports PDF/CSV</li>
+                    <li>Visualisation des motifs de retard et d'absence</li>
+                </ul>
+            </div>
+
+            <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-2">
+                <p class="text-xs font-bold text-slate-800">Notifications sur cet appareil</p>
+                <p class="notification-permission-status text-xs text-slate-600" aria-live="polite">Vérification de l’autorisation…</p>
+                <button type="button" class="btn-enable-notifications w-full py-2.5 bg-blue-700 text-white rounded-xl text-xs font-bold">
+                    Activer les rappels
+                </button>
+            </div>
+
+            <!-- Bouton Déconnexion Manager (Propre, Grand et Visible) -->
+            <button type="button" onclick="App.handleLogout()" class="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-sm shadow-md transition flex items-center justify-center space-x-2 ripple">
+                <i class="fa-solid fa-power-off"></i>
+                <span>Se déconnecter</span>
+            </button>
+        </div>
+
+    </main>
+
+    <!-- Bottom Navigation Bar (Salariés & Managers individuels) -->
+    <nav id="bottom-nav" class="hidden bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-2 flex justify-around items-center z-20 relative shadow-lg">
+        <button id="btn-nav-punch" type="button" class="flex flex-col items-center py-1.5 px-4 text-blue-600 font-bold text-xs rounded-2xl transition nav-btn-active">
+            <div class="w-8 h-8 rounded-xl flex items-center justify-center mb-0.5 bg-blue-50 text-blue-600">
+                <i class="fa-solid fa-fingerprint text-base"></i>
+            </div>
+            <span class="text-[11px] tracking-tight">Pointer</span>
+        </button>
+        <button id="btn-nav-manager" type="button" class="hidden flex flex-col items-center py-1.5 px-4 text-slate-400 hover:text-slate-700 font-medium text-xs rounded-2xl transition">
+            <div class="w-8 h-8 rounded-xl flex items-center justify-center mb-0.5 bg-slate-100 text-slate-500">
+                <i class="fa-solid fa-chart-pie text-base"></i>
+            </div>
+            <span class="text-[11px] tracking-tight">Équipe</span>
+        </button>
+        <button id="btn-nav-history" type="button" class="flex flex-col items-center py-1.5 px-4 text-slate-400 hover:text-slate-700 font-medium text-xs rounded-2xl transition">
+            <div class="w-8 h-8 rounded-xl flex items-center justify-center mb-0.5 bg-slate-100 text-slate-500">
+                <i class="fa-solid fa-calendar-check text-base"></i>
+            </div>
+            <span class="text-[11px] tracking-tight">Historique</span>
+        </button>
+        <button id="btn-nav-account" type="button" class="flex flex-col items-center py-1.5 px-4 text-slate-400 hover:text-slate-700 font-medium text-xs rounded-2xl transition">
+            <div class="w-8 h-8 rounded-xl flex items-center justify-center mb-0.5 bg-slate-100 text-slate-500">
+                <i class="fa-solid fa-id-badge text-base"></i>
+            </div>
+            <span class="text-[11px] tracking-tight">Compte</span>
+        </button>
+    </nav>
+
+    <!-- Bandeau Mode Borne (affiché uniquement quand la borne est active) -->
+    <div id="kiosk-bar" class="hidden bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between z-20 relative text-xs">
+        <div class="flex items-center space-x-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span class="text-slate-300">Borne :</span>
+            <span id="kiosk-name-badge" class="font-bold text-emerald-300">Accueil</span>
+        </div>
+        <div class="flex items-center space-x-2">
+            <span class="notification-permission-status sr-only" aria-live="polite"></span>
+            <button type="button" class="btn-enable-notifications px-3 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-[11px] font-bold text-white transition">
+                Activer les rappels
+            </button>
+            <button type="button" onclick="App.handleKioskLogout()" class="px-3 py-1 bg-white/10 hover:bg-rose-600 rounded-lg text-[11px] font-bold text-white transition">
+                <i class="fa-solid fa-power-off mr-1"></i> Quitter la borne
+            </button>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         MODAL: SCANNER QR CODE (Caméra)
+    =========================================== -->
+    <div id="modal-scanner" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-xl flex flex-col items-center justify-between p-6">
+        <div class="w-full flex justify-between items-center text-white">
+            <span class="text-sm font-bold flex items-center">
+                <i class="fa-solid fa-camera mr-2 text-emerald-400"></i> Scanner le badge QR
+            </span>
+            {{-- Bouton fermeture distinct avec croix noire sur cercle blanc très contrasté --}}
+            <button id="btn-close-scanner" type="button" class="w-11 h-11 rounded-full bg-white text-slate-900 shadow-xl flex items-center justify-center text-lg hover:bg-slate-100 transition flex-shrink-0" title="Fermer le scanner">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="w-full max-w-xs aspect-square rounded-3xl overflow-hidden border-2 border-emerald-400 relative shadow-2xl bg-black">
+            <div id="qr-reader" class="w-full h-full"></div>
+        </div>
+        <p id="camera-error" class="hidden w-full max-w-xs p-3 bg-rose-100 text-rose-800 text-xs text-center rounded-xl" role="alert"></p>
+
+        <div class="flex flex-col items-center space-y-3 pb-4">
+            <button id="btn-switch-camera" type="button" class="hidden px-5 py-2.5 bg-white/20 text-white rounded-full text-xs font-bold backdrop-blur-md hover:bg-white/30 transition flex items-center">
+                <i class="fa-solid fa-rotate mr-2"></i> Changer de caméra
+            </button>
+            <button id="btn-scanner-switch-pin" type="button" class="px-5 py-2.5 bg-white/20 text-white rounded-full text-xs font-bold backdrop-blur-md hover:bg-white/30 transition flex items-center">
+                <i class="fa-solid fa-keyboard mr-2"></i> Basculer sur le code PIN
+            </button>
+            <p class="text-center text-xs text-white/70 max-w-xs">
+                Positionnez le QR code au centre du cadre
+            </p>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         MODAL: JUSTIFICATION ABSENCE / RETARD
+    =========================================== -->
+    <div id="modal-justification" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl border border-slate-200 animate-slide-up">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-sm">
+                        <i class="fa-solid fa-file-pen"></i>
+                    </div>
+                    <h3 class="text-base font-bold text-slate-900">Justification</h3>
+                </div>
+                <button id="btn-close-justification" type="button" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+
+            <div id="justif-error" class="hidden p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl"></div>
+            <div id="justif-success" class="hidden p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl"></div>
+
+            <form id="form-justification" class="space-y-3.5">
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">Date concernée *</label>
+                    <input type="date" id="justif-date" required class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">Type de justification *</label>
+                    <select id="justif-reason" required class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                        <option value="retard">Retard justifié</option>
+                        <option value="absence">Absence autorisée / Maladie</option>
+                        <option value="oubli_pointage">Oubli de pointage</option>
+                        <option value="autre">Autre motif</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">Détails / Motif écrit *</label>
+                    <textarea id="justif-details" required rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-blue-600 focus:outline-none" placeholder="Expliquez brièvement le motif..."></textarea>
+                </div>
+                <button type="submit" id="btn-submit-justification" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs shadow-md transition">
+                    Envoyer ma justification
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: DÉTAIL JUSTIFICATION (Vue Manager) -->
+    <div id="modal-manager-justif" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-emerald-900/50 text-white rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl animate-slide-up">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+                <div class="flex items-center space-x-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                    <h3 class="text-sm font-bold uppercase tracking-wider text-emerald-300">Détail Justification</h3>
+                </div>
+                <button type="button" onclick="document.getElementById('modal-manager-justif').classList.add('hidden')" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark text-xs"></i>
+                </button>
+            </div>
+            <div class="space-y-3 text-xs">
+                <div>
+                    <span class="text-slate-400 text-[10px] uppercase font-bold">Salarié :</span>
+                    <div id="mgr-modal-justif-employee" class="text-white font-bold text-sm">—</div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <span class="text-slate-400 text-[10px] uppercase font-bold">Date :</span>
+                        <div id="mgr-modal-justif-date" class="text-white font-semibold">—</div>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 text-[10px] uppercase font-bold">Motif :</span>
+                        <div id="mgr-modal-justif-type" class="text-amber-400 font-semibold uppercase">—</div>
+                    </div>
+                </div>
+                <div>
+                    <span class="text-slate-400 text-[10px] uppercase font-bold">Explication :</span>
+                    <div id="mgr-modal-justif-reason" class="p-3 bg-slate-950/70 border border-slate-800 rounded-xl text-slate-200 mt-1 leading-relaxed">—</div>
+                </div>
+            </div>
+            <button type="button" onclick="document.getElementById('modal-manager-justif').classList.add('hidden')" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition">
+                Fermer
+            </button>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         OVERLAY DE CONFIRMATION / ERREUR
+    =========================================== -->
+    <div id="overlay-result" class="hidden fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-6 transition-all duration-300">
+        <div id="result-box" class="w-full max-w-sm rounded-3xl p-8 text-center text-white shadow-2xl bg-gradient-to-b from-emerald-600 to-emerald-700 animate-slide-up">
+            <i id="result-icon" class="fa-solid fa-circle-check text-5xl mb-4"></i>
+            <h3 id="result-title" class="text-xl font-black uppercase tracking-wider mb-2">ARRIVÉE VALIDÉE</h3>
+            <p id="result-msg" class="text-sm font-medium opacity-90 leading-relaxed mb-4">Pointage validé.</p>
+            <div id="result-time" class="text-2xl font-mono font-bold tracking-widest bg-white/20 py-2 rounded-2xl inline-block px-6">08:30</div>
+            <div id="result-offline-badge" class="hidden mt-4 inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-500 text-slate-950">
+                <i class="fa-solid fa-cloud-arrow-up mr-1.5"></i> Sauvegardé en local (hors-ligne)
+            </div>
+        </div>
+    </div>
+
+    <!-- Application modules -->
+    <script defer src="./js/app-core.js?v=17.0"></script>
+    <script defer src="./js/app-lifecycle.js?v=17.0"></script>
+    <script defer src="./js/app-events.js?v=17.0"></script>
+    <script defer src="./js/app-navigation.js?v=17.0"></script>
+    <script defer src="./js/app-auth.js?v=17.0"></script>
+    <script defer src="./js/app-punch.js?v=17.0"></script>
+    <script defer src="./js/app-history.js?v=17.0"></script>
+    <script defer src="./js/app-account.js?v=17.0"></script>
+    <script defer src="./js/app-manager.js?v=17.0"></script>
+    <script defer src="./js/app.js?v=17.0"></script>
+    <script>
+        window.setTimeout(() => {
+            const splash = document.getElementById('splashscreen');
+            if (splash) splash.remove();
+        }, 5000);
+    </script>
+</body>
+</html>
